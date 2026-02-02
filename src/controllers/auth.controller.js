@@ -1,8 +1,6 @@
 import jwt from 'jsonwebtoken';
-import { OAuth2Client } from 'google-auth-library';
 import User from '../models/user.js';
-
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+import { verifyGoogleToken } from '../utils/googleVerify.js';
 
 export const googleLogin = async (req, res) => {
   try {
@@ -16,12 +14,13 @@ export const googleLogin = async (req, res) => {
       return res.status(400).json({ message: 'No token provided' });
     }
 
-    const ticket = await client.verifyIdToken({
-      idToken: idToken,
-      audience: process.env.GOOGLE_CLIENT_ID
-    });
+    const verification = await verifyGoogleToken(idToken);
+    
+    if (!verification.success) {
+      return res.status(401).json({ message: 'Google authentication failed', error: verification.error });
+    }
 
-    const { name, email, picture } = ticket.getPayload();
+    const { name, email, picture } = verification.data;
 
     let user = await User.findOne({ email });
 
@@ -29,22 +28,93 @@ export const googleLogin = async (req, res) => {
       user = await User.create({
         name,
         email,
-        avatar: picture
+        avatar: picture,
+        role: 'customer' // Default role
       });
     }
 
     const jwtToken = jwt.sign(
-      { userId: user._id },
+      { userId: user._id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
     res.json({
       token: jwtToken,
-      user
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        role: user.role,
+        verified: user.verified
+      }
     });
   } catch (err) {
     console.error('Google Login Error:', err);
     res.status(401).json({ message: 'Google authentication failed' });
+  }
+};
+
+export const completeProfile = async (req, res) => {
+  try {
+    const { role, specialization, experience, hourlyRate, bio, serviceTypes, certifications } = req.body;
+    const userId = req.userId;
+
+    if (!['customer', 'tutor', 'repair_specialist'].includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+
+    const updateData = { role };
+
+    if (role === 'tutor') {
+      updateData.specialization = specialization;
+      updateData.experience = experience;
+      updateData.hourlyRate = hourlyRate;
+      updateData.bio = bio;
+    } else if (role === 'repair_specialist') {
+      updateData.serviceTypes = serviceTypes;
+      updateData.certifications = certifications;
+    }
+
+    // Handle uploaded documents
+    if (req.files && req.files.length > 0) {
+      updateData.documents = req.files.map(file => ({
+        filename: file.filename,
+        path: file.path
+      }));
+    }
+
+    const user = await User.findByIdAndUpdate(userId, updateData, { new: true });
+
+    res.json({
+      message: 'Profile completed successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        role: user.role,
+        verified: user.verified
+      }
+    });
+  } catch (err) {
+    console.error('Complete Profile Error:', err);
+    res.status(500).json({ message: 'Failed to complete profile' });
+  }
+};
+
+export const getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('-__v');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ user });
+  } catch (err) {
+    console.error('Get Profile Error:', err);
+    res.status(500).json({ message: 'Failed to get profile' });
   }
 };
