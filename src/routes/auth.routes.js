@@ -1,12 +1,14 @@
 import express from 'express';
-import { googleLogin, completeProfile, getProfile } from '../controllers/auth.controller.js';
-import { protect } from '../middleware/auth.middleware.js';
+import { googleLogin, emailSignup, emailLogin } from '../controllers/auth.controller.js';
 import { upload } from '../utils/upload.js';
 
 const router = express.Router();
 
+// Google OAuth
 router.post('/google-login', googleLogin);
-router.post('/complete-profile', protect, upload.array('documents', 5), completeProfile);
-router.get('/profile', protect, getProfile);
+
+// Email/Password Authentication
+router.post('/email/signup', upload.single('document'), emailSignup);
+router.post('/email/login', emailLogin);
 
 export default router;
