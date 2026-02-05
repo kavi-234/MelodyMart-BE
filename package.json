@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "create-admin": "node src/scripts/createAdmin.js",
+    "clear-users": "node src/scripts/clearUsers.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
