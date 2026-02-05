@@ -16,7 +16,8 @@ const instrumentSchema = new mongoose.Schema({
   },
   price: {
     type: Number,
-    required: true
+    required: true,
+    min: [0, 'Price cannot be negative']
   },
   stock: {
     type: Number,

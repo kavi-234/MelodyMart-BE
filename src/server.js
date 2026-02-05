@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import multer from 'multer';
 import authRoutes from './routes/auth.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import instrumentRoutes from './routes/instrument.routes.js';
@@ -34,6 +35,26 @@ app.use('/api/lessons', lessonRoutes);
 app.use('/api/tutors', tutorRoutes);
 app.use('/api/me', userRoutes);
 app.use('/api/specialists', specialistRoutes);
+
+// Centralized error handling middleware
+app.use((err, req, res, next) => {
+  // Handle Multer errors
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'File size exceeds the 5MB limit' });
+    }
+    return res.status(400).json({ message: `Upload error: ${err.message}` });
+  }
+  
+  // Handle custom multer fileFilter errors
+  if (err.message && err.message.includes('Only')) {
+    return res.status(400).json({ message: err.message });
+  }
+  
+  // Handle other errors
+  console.error('Server Error:', err);
+  res.status(500).json({ message: 'Internal server error' });
+});
 
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('MongoDB connected'))

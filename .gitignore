@@ -193,5 +193,5 @@ sessions/
 *.bak
 *.backup
 
-# Markdown files
-*.md
+# Generated documentation only (keep README.md, CONTRIBUTING.md, etc.)
+# docs/generated/*.md

@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
       isVerified: true,
       verificationStatus: 'APPROVED'
     })
-      .select('name email specialization experience hourlyRate avatar bio isVerified')
+      .select('name specialization experience hourlyRate avatar bio isVerified')
       .sort({ createdAt: -1 });
 
     res.json({ tutors });
@@ -27,8 +27,9 @@ router.get('/:id', async (req, res) => {
     const tutor = await User.findOne({
       _id: req.params.id,
       role: 'tutor',
-      isVerified: true
-    }).select('name email phone specialization experience hourlyRate avatar bio isVerified verificationStatus authProvider createdAt');
+      isVerified: true,
+      verificationStatus: 'APPROVED'
+    }).select('name specialization experience hourlyRate avatar bio isVerified verificationStatus createdAt');
 
     if (!tutor) {
       return res.status(404).json({ message: 'Tutor not found' });

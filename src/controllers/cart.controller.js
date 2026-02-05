@@ -14,10 +14,12 @@ export const getCart = async (req, res) => {
       return res.json({ items: [], total: 0 });
     }
 
-    // Calculate total
-    const total = cart.items.reduce((sum, item) => {
-      return sum + (item.instrument.price * item.quantity);
-    }, 0);
+    // Calculate total - filter out items with missing instruments
+    const total = cart.items
+      .filter(item => item.instrument && item.instrument.price !== undefined)
+      .reduce((sum, item) => {
+        return sum + (item.instrument.price * item.quantity);
+      }, 0);
 
     res.json({ items: cart.items, total });
   } catch (error) {
@@ -28,7 +30,18 @@ export const getCart = async (req, res) => {
 // Add item to cart
 export const addToCart = async (req, res) => {
   try {
-    const { instrumentId, quantity = 1 } = req.body;
+    const { instrumentId } = req.body;
+    const quantity = parseInt(req.body.quantity ?? 1, 10);
+
+    // Validate quantity
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      return res.status(400).json({ message: 'Quantity must be a positive integer' });
+    }
+
+    // Validate instrumentId
+    if (!instrumentId) {
+      return res.status(400).json({ message: 'Instrument ID is required' });
+    }
 
     // Check if instrument exists and has stock
     const instrument = await Instrument.findById(instrumentId);
@@ -84,7 +97,18 @@ export const addToCart = async (req, res) => {
 // Update cart item quantity
 export const updateCartItem = async (req, res) => {
   try {
-    const { instrumentId, quantity } = req.body;
+    const { instrumentId } = req.body;
+    const quantity = parseInt(req.body.quantity, 10);
+
+    // Validate quantity
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      return res.status(400).json({ message: 'Quantity must be a positive integer' });
+    }
+
+    // Validate instrumentId
+    if (!instrumentId) {
+      return res.status(400).json({ message: 'Instrument ID is required' });
+    }
 
     const cart = await Cart.findOne({ user: req.user.userId });
     if (!cart) {
@@ -101,6 +125,9 @@ export const updateCartItem = async (req, res) => {
 
     // Check stock
     const instrument = await Instrument.findById(instrumentId);
+    if (!instrument) {
+      return res.status(404).json({ message: 'Instrument not found' });
+    }
     if (instrument.stock < quantity) {
       return res.status(400).json({ message: 'Insufficient stock' });
     }

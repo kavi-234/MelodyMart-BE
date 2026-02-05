@@ -255,6 +255,13 @@ export const completeProfile = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Prevent re-completion of profile
+    if (user.profileCompleted) {
+      return res.status(400).json({ 
+        message: 'Profile already completed. Cannot change role or complete profile again.' 
+      });
+    }
+
     // Validate role
     if (!['customer', 'tutor', 'repair_specialist'].includes(role)) {
       return res.status(400).json({ message: 'Invalid role' });
@@ -293,7 +300,8 @@ export const completeProfile = async (req, res) => {
     // Add document URLs if uploaded
     if (req.files && req.files.length > 0) {
       user.verificationDocuments = req.files.map(file => ({
-        url: `/uploads/documents/${file.filename}`,
+        fileUrl: `/uploads/documents/${file.filename}`,
+        fileName: file.originalname,
         uploadedAt: new Date()
       }));
     }
