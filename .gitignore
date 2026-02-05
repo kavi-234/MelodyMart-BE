@@ -150,3 +150,48 @@ $RECYCLE.BIN/
 .DS_Store
 .AppleDouble
 .LSOverride
+# Uploaded files
+uploads/
+*.pdf
+*.doc
+*.docx
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# MongoDB
+data/
+mongod.lock
+
+# Package manager lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Postman collections (if auto-generated)
+postman/collections/*.json
+postman/environments/*.json
+
+# Session files
+sessions/
+
+# Certificates and keys
+*.pem
+*.key
+*.cert
+*.crt
+
+# Backup files
+*.bak
+*.backup
+
+# Markdown files
+*.md

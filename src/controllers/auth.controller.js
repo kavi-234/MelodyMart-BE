@@ -33,17 +33,37 @@ export const googleLogin = async (req, res) => {
       });
     }
 
+    // Check verification status for existing Google users
+    if (user && user.authProvider === 'google') {
+      // Check if account was rejected
+      if (user.verificationStatus === 'REJECTED') {
+        return res.status(403).json({ 
+          message: 'Your account has been rejected. Please contact support.' 
+        });
+      }
+      
+      // Check if account is pending verification (for tutors/repair specialists)
+      if (user.verificationStatus === 'PENDING_APPROVAL' && (user.role === 'tutor' || user.role === 'repair_specialist')) {
+        return res.status(403).json({ 
+          message: 'Your account is pending admin approval. Please check back later.' 
+        });
+      }
+    }
+
     if (!user) {
       user = await User.create({
         name,
         email,
         avatar: picture,
-        authProvider: 'google'
+        authProvider: 'google',
+        role: 'customer', // Default to customer for Google sign-ups
+        isVerified: true,
+        verificationStatus: 'APPROVED' // Auto-approve Google customers
       });
     }
 
     const jwtToken = jwt.sign(
-      { userId: user._id },
+      { userId: user._id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -97,7 +117,8 @@ export const emailSignup = async (req, res) => {
       password: hashedPassword,
       authProvider: 'local',
       role,
-      isVerified: role === 'customer' // Auto-verify customers, require verification for tutors/repair specialists
+      isVerified: role === 'customer', // Auto-verify customers, require verification for tutors/repair specialists
+      verificationStatus: role === 'customer' ? 'APPROVED' : 'PENDING_APPROVAL'
     };
 
     // Add document URL if uploaded
@@ -128,7 +149,10 @@ export const emailSignup = async (req, res) => {
 
     res.status(201).json({
       token,
-      user: userResponse
+      user: userResponse,
+      message: role === 'customer' 
+        ? 'Account created successfully!' 
+        : 'Account created successfully! Your account is pending admin approval. You will be able to login once approved.'
     });
   } catch (err) {
     console.error('Email Signup Error:', err);
@@ -162,6 +186,20 @@ export const emailLogin = async (req, res) => {
     if (user.authProvider === 'google') {
       return res.status(400).json({ 
         message: 'This email is registered with Google. Please use Google Sign-In instead.' 
+      });
+    }
+
+    // Check if account was rejected
+    if (user.verificationStatus === 'REJECTED') {
+      return res.status(403).json({ 
+        message: 'Your account has been rejected. Please contact support or create a new account.' 
+      });
+    }
+
+    // Check if account is pending approval (for tutors and repair specialists)
+    if (user.verificationStatus === 'PENDING_APPROVAL') {
+      return res.status(403).json({ 
+        message: 'Your account is pending admin approval. Please wait for approval before logging in.' 
       });
     }
 
@@ -203,5 +241,119 @@ export const emailLogin = async (req, res) => {
   } catch (err) {
     console.error('Email Login Error:', err);
     res.status(500).json({ message: 'Login failed' });
+  }
+};
+
+export const completeProfile = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { role, specialization, experience, hourlyRate, bio, serviceTypes, certifications } = req.body;
+
+    // Find user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Validate role
+    if (!['customer', 'tutor', 'repair_specialist'].includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+
+    // Check document requirement for tutor/repair_specialist
+    if ((role === 'tutor' || role === 'repair_specialist') && (!req.files || req.files.length === 0)) {
+      return res.status(400).json({ 
+        message: 'Document upload is required for tutors and repair specialists' 
+      });
+    }
+
+    // Update user role and profile
+    user.role = role;
+    user.profileCompleted = true;
+
+    // Add role-specific fields
+    if (role === 'tutor') {
+      user.specialization = specialization;
+      user.experience = experience;
+      user.hourlyRate = hourlyRate;
+      user.bio = bio;
+      user.verificationStatus = 'PENDING_APPROVAL'; // Requires admin approval
+      user.isVerified = false;
+    } else if (role === 'repair_specialist') {
+      user.serviceTypes = serviceTypes;
+      user.certifications = certifications;
+      user.bio = bio;
+      user.verificationStatus = 'PENDING_APPROVAL'; // Requires admin approval
+      user.isVerified = false;
+    } else if (role === 'customer') {
+      user.verificationStatus = 'APPROVED'; // Auto-approve customers
+      user.isVerified = true;
+    }
+
+    // Add document URLs if uploaded
+    if (req.files && req.files.length > 0) {
+      user.verificationDocuments = req.files.map(file => ({
+        url: `/uploads/documents/${file.filename}`,
+        uploadedAt: new Date()
+      }));
+    }
+
+    await user.save();
+
+    res.json({
+      message: 'Profile completed successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        profileCompleted: user.profileCompleted,
+        verificationStatus: user.verificationStatus,
+        isVerified: user.isVerified,
+        specialization: user.specialization,
+        experience: user.experience,
+        hourlyRate: user.hourlyRate,
+        serviceTypes: user.serviceTypes,
+        bio: user.bio,
+        requiresApproval: role === 'tutor' || role === 'repair_specialist'
+      }
+    });
+  } catch (err) {
+    console.error('Complete Profile Error:', err);
+    res.status(500).json({ message: 'Failed to complete profile' });
+  }
+};
+
+export const getProfileStatus = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    const user = await User.findById(userId).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        role: user.role,
+        profileCompleted: user.profileCompleted,
+        verificationStatus: user.verificationStatus,
+        isVerified: user.isVerified,
+        authProvider: user.authProvider,
+        specialization: user.specialization,
+        experience: user.experience,
+        hourlyRate: user.hourlyRate,
+        serviceTypes: user.serviceTypes,
+        bio: user.bio
+      }
+    });
+  } catch (err) {
+    console.error('Get Profile Status Error:', err);
+    res.status(500).json({ message: 'Failed to get profile status' });
   }
 };
