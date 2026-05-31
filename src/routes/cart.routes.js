@@ -7,12 +7,11 @@ import {
   clearCart 
 } from '../controllers/cart.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
-import { isCustomer } from '../middleware/role.middleware.js';
 
 const router = express.Router();
 
-// All cart routes require customer authentication
-router.use(protect, isCustomer);
+// All cart routes require authentication (any authenticated user can use cart)
+router.use(protect);
 
 router.get('/', getCart);
 router.post('/add', addToCart);

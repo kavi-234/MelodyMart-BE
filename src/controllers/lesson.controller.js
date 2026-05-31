@@ -81,6 +81,22 @@ export const getTutorLessons = async (req, res) => {
   }
 };
 
+// Get lessons by tutor ID (public)
+export const getLessonsByTutorId = async (req, res) => {
+  try {
+    const { tutorId } = req.params;
+
+    const lessons = await Lesson.find({ tutor: tutorId, isActive: true })
+      .populate('tutor', 'name email specialization avatar')
+      .sort({ createdAt: -1 });
+
+    res.json({ lessons });
+  } catch (error) {
+    console.error('Get Lessons By Tutor Error:', error);
+    res.status(500).json({ message: 'Failed to fetch lessons' });
+  }
+};
+
 // Get single lesson
 export const getLesson = async (req, res) => {
   try {
@@ -114,7 +130,14 @@ export const updateLesson = async (req, res) => {
       return res.status(404).json({ message: 'Lesson not found' });
     }
 
-    if (lesson.tutor.toString() !== req.user.userId) {
+    // Convert both to strings for comparison
+    const lessonTutorId = lesson.tutor.toString();
+    const requestUserId = req.user.userId.toString();
+    
+    console.log('Update Lesson - Tutor ID:', lessonTutorId, 'User ID:', requestUserId);
+
+    if (lessonTutorId !== requestUserId) {
+      console.error('Authorization failed: Tutor mismatch');
       return res.status(403).json({ message: 'Not authorized to update this lesson' });
     }
 
@@ -145,7 +168,14 @@ export const deleteLesson = async (req, res) => {
       return res.status(404).json({ message: 'Lesson not found' });
     }
 
-    if (lesson.tutor.toString() !== req.user.userId) {
+    // Convert both to strings for comparison
+    const lessonTutorId = lesson.tutor.toString();
+    const requestUserId = req.user.userId.toString();
+    
+    console.log('Delete Lesson - Tutor ID:', lessonTutorId, 'User ID:', requestUserId);
+
+    if (lessonTutorId !== requestUserId) {
+      console.error('Authorization failed: Tutor mismatch');
       return res.status(403).json({ message: 'Not authorized to delete this lesson' });
     }
 
