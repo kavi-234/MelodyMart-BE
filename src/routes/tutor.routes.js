@@ -8,12 +8,12 @@ router.get('/', async (req, res) => {
   try {
     const tutors = await User.find({
       role: 'tutor',
-      isVerified: true,
       verificationStatus: 'APPROVED'
     })
-      .select('name specialization experience hourlyRate avatar bio isVerified')
+      .select('name specialization experience hourlyRate avatar bio isVerified verificationStatus')
       .sort({ createdAt: -1 });
 
+    console.log(`Found ${tutors.length} approved tutors`);
     res.json({ tutors });
   } catch (error) {
     console.error('Get Tutors Error:', error);
@@ -27,7 +27,6 @@ router.get('/:id', async (req, res) => {
     const tutor = await User.findOne({
       _id: req.params.id,
       role: 'tutor',
-      isVerified: true,
       verificationStatus: 'APPROVED'
     }).select('name specialization experience hourlyRate avatar bio isVerified verificationStatus createdAt');
 

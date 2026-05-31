@@ -14,6 +14,8 @@ export const getVerifiedSpecialists = async (req, res) => {
     .sort({ createdAt: -1 })
     .limit(4); // Limit to 4 for the landing page
 
+    console.log(`Found ${specialists.length} approved repair specialists`);
+    
     res.status(200).json({
       success: true,
       specialists

@@ -3,26 +3,28 @@ import {
   createLesson,
   getAllLessons,
   getTutorLessons,
+  getLessonsByTutorId,
   getLesson,
   updateLesson,
   deleteLesson,
   enrollInLesson
 } from '../controllers/lesson.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
-import { checkRole } from '../middleware/role.middleware.js';
+import { isTutor } from '../middleware/role.middleware.js';
 
 const router = express.Router();
 
 // Public routes
 router.get('/', getAllLessons);
 
-// Protected routes - Tutor only (specific routes before param routes)
-router.get('/tutor/my-lessons', protect, checkRole('tutor'), getTutorLessons);
-router.post('/', protect, checkRole('tutor'), createLesson);
-router.put('/:id', protect, checkRole('tutor'), updateLesson);
-router.delete('/:id', protect, checkRole('tutor'), deleteLesson);
+// Protected routes - Tutor only (specific routes MUST come before param routes)
+router.get('/tutor/my-lessons', protect, isTutor, getTutorLessons);
+router.post('/', protect, isTutor, createLesson);
+router.put('/:id', protect, isTutor, updateLesson);
+router.delete('/:id', protect, isTutor, deleteLesson);
 
-// Public param route (must be after specific routes)
+// Public routes with params (must be after specific routes)
+router.get('/tutor/:tutorId', getLessonsByTutorId);
 router.get('/:id', getLesson);
 
 // Student enrollment

@@ -69,9 +69,17 @@ router.patch('/', protect, upload.single('avatar'), async (req, res) => {
     }
 
     // Whitelist of allowed update fields
-    const allowedUpdates = ['name', 'phone'];
+    const allowedUpdates = ['name'];
     
     // Add role-specific fields
+    if (user.role === 'customer') {
+      allowedUpdates.push('phone');
+    }
+    
+    if (user.role === 'tutor') {
+      allowedUpdates.push('experience', 'specialization', 'hourlyRate', 'bio');
+    }
+    
     if (user.role === 'repair_specialist') {
       allowedUpdates.push('experience', 'specialization');
     }

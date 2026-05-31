@@ -58,7 +58,8 @@ export const googleLogin = async (req, res) => {
         authProvider: 'google',
         role: 'customer', // Default to customer for Google sign-ups
         isVerified: true,
-        verificationStatus: 'APPROVED' // Auto-approve Google customers
+        verificationStatus: 'APPROVED', // Auto-approve Google customers
+        profileCompleted: false // Allow users to complete profile and change role if needed
       });
     }
 
