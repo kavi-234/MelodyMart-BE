@@ -5,6 +5,7 @@ import {
   getTutorLessons,
   getLessonsByTutorId,
   getLesson,
+  getStudentLessons,
   updateLesson,
   deleteLesson,
   enrollInLesson
@@ -29,5 +30,8 @@ router.get('/:id', getLesson);
 
 // Student enrollment
 router.post('/:id/enroll', protect, enrollInLesson);
+
+// Student's enrolled lessons
+router.get('/student/my-lessons', protect, getStudentLessons);
 
 export default router;
