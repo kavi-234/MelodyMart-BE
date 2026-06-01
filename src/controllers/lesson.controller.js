@@ -97,6 +97,22 @@ export const getLessonsByTutorId = async (req, res) => {
   }
 };
 
+// Get student's enrolled lessons
+export const getStudentLessons = async (req, res) => {
+  try {
+    const studentId = req.user.userId
+    const lessons = await Lesson.find({ enrolledStudents: studentId, isActive: true })
+      .populate('tutor', 'name email specialization avatar')
+      .populate('enrolledStudents', 'name email avatar')
+      .sort({ createdAt: -1 })
+
+    res.json({ lessons })
+  } catch (error) {
+    console.error('Get Student Lessons Error:', error)
+    res.status(500).json({ message: 'Failed to fetch student lessons' })
+  }
+}
+
 // Get single lesson
 export const getLesson = async (req, res) => {
   try {
