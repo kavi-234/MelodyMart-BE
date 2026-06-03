@@ -59,6 +59,10 @@ const orderSchema = new mongoose.Schema(
       payment_id: String,
       md5sig: String,
     },
+    lessonId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Lesson',
+    },
     paidAt: Date,
     failedAt: Date,
     customer: {

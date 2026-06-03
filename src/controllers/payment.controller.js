@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import Cart from '../models/cart.js';
 import Order from '../models/order.js';
 import User from '../models/user.js';
+import Lesson from '../models/lesson.js';
+import LessonBooking from '../models/lessonBooking.js';
 
 const getPayHereCheckoutUrl = () => {
   return process.env.PAYHERE_MODE === 'live'
@@ -286,6 +288,99 @@ export const handlePayHereNotify = async (req, res) => {
   }
 };
 
+export const initiatePayHereCheckoutForLesson = async (req, res) => {
+  try {
+    const merchantId = process.env.PAYHERE_MERCHANT_ID;
+    const merchantSecret = process.env.PAYHERE_MERCHANT_SECRET;
+    const currency = process.env.PAYHERE_CURRENCY || 'LKR';
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const notifyUrl = resolvePayHereNotifyUrl();
+
+    if (!merchantId || !merchantSecret) {
+      return res.status(500).json({
+        message: 'PayHere is not configured. Set PAYHERE_MERCHANT_ID and PAYHERE_MERCHANT_SECRET in the backend .env file.',
+      });
+    }
+
+    const { lessonId } = req.params;
+    const lesson = await Lesson.findById(lessonId).populate('tutor', 'name');
+    if (!lesson) {
+      return res.status(404).json({ message: 'Lesson not found' });
+    }
+
+    const user = await User.findById(req.user.userId).select('name email phone address');
+    const amount = Number(lesson.price) || 0;
+
+    // Use a fingerprint to avoid duplicate pending orders for the same lesson+user
+    const lessonFingerprint = getMd5Hex(`lesson:${String(lessonId)}:${String(req.user.userId)}`);
+
+    let order = await Order.findOne({
+      user: req.user.userId,
+      status: 'PENDING',
+      cartFingerprint: lessonFingerprint,
+    });
+
+    let checkoutOrderId;
+
+    if (!order) {
+      checkoutOrderId = buildOrderId();
+      order = await Order.create({
+        user: req.user.userId,
+        orderId: checkoutOrderId,
+        lessonId,
+        items: [],
+        amount,
+        currency,
+        status: 'PENDING',
+        paymentProvider: 'payhere',
+        cartFingerprint: lessonFingerprint,
+        customer: {
+          name: user?.name || 'Customer',
+          email: user?.email || '',
+          phone: user?.phone || '',
+          address: user?.address || '',
+        },
+      });
+    } else {
+      checkoutOrderId = order.orderId;
+    }
+
+    const { firstName, lastName } = buildCustomerName(order.customer.name);
+    const hashedSecret = getMd5Hex(merchantSecret);
+    const formattedAmount = amount.toFixed(2);
+    const hash = getMd5Hex(`${merchantId}${checkoutOrderId}${formattedAmount}${currency}${hashedSecret}`);
+
+    const payload = {
+      merchant_id: merchantId,
+      return_url: `${frontendUrl}/lesson-payment/return?payment=success&bookingId=${lessonId}`,
+      cancel_url: `${frontendUrl}/lesson-payment/return?payment=cancelled&bookingId=${lessonId}`,
+      notify_url: notifyUrl,
+      order_id: checkoutOrderId,
+      items: lesson.title,
+      amount: formattedAmount,
+      currency,
+      first_name: firstName,
+      last_name: lastName,
+      email: order.customer.email || 'customer@example.com',
+      phone: order.customer.phone || '0000000000',
+      address: order.customer.address || 'N/A',
+      city: 'Colombo',
+      country: 'Sri Lanka',
+      hash,
+    };
+
+    return res.json({
+      actionUrl: getPayHereCheckoutUrl(),
+      payload,
+      orderId: checkoutOrderId,
+      amount,
+    });
+  } catch (error) {
+    console.error('PayHere lesson checkout error:', error);
+    res.status(500).json({ message: 'Failed to initialize lesson payment' });
+  }
+};
+
 export const reconcileOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -324,5 +419,60 @@ export const reconcileOrder = async (req, res) => {
   } catch (error) {
     console.error('Manual reconcile error:', error);
     return res.status(500).json({ message: 'Failed to reconcile order' });
+  }
+};
+
+// Mark a lesson booking as Paid/Confirmed after PayHere return
+export const reconcileLessonPayment = async (req, res) => {
+  try {
+    const { lessonId } = req.params;
+
+    // Upsert: handle legacy enrollments that pre-date the LessonBooking model
+    let booking = await LessonBooking.findOne({ lesson: lessonId, student: req.user.userId });
+    if (!booking) {
+      const enrolled = await Lesson.findOne({ _id: lessonId, enrolledStudents: req.user.userId });
+      if (!enrolled) return res.status(404).json({ message: 'Booking not found' });
+      booking = new LessonBooking({ lesson: lessonId, student: req.user.userId });
+    }
+
+    if (booking.paymentStatus === 'Paid') {
+      return res.json({ paymentStatus: booking.paymentStatus, bookingStatus: booking.bookingStatus });
+    }
+
+    booking.paymentStatus = 'Paid';
+    booking.bookingStatus = 'Confirmed';
+    await booking.save();
+
+    // Also mark the associated Order as PAID
+    const lessonFingerprint = getMd5Hex(`lesson:${String(lessonId)}:${String(req.user.userId)}`);
+    await Order.findOneAndUpdate(
+      { user: req.user.userId, cartFingerprint: lessonFingerprint, status: 'PENDING' },
+      { status: 'PAID', payHerePaymentId: 'LESSON_CONFIRMED', paidAt: new Date() }
+    );
+
+    return res.json({ paymentStatus: 'Paid', bookingStatus: 'Confirmed' });
+  } catch (error) {
+    console.error('Reconcile lesson payment error:', error);
+    return res.status(500).json({ message: 'Failed to confirm lesson payment' });
+  }
+};
+
+// Get a student's lesson booking status (used by return page to poll)
+export const getLessonBooking = async (req, res) => {
+  try {
+    const { lessonId } = req.params;
+
+    // Upsert: handle legacy enrollments that pre-date the LessonBooking model
+    let booking = await LessonBooking.findOne({ lesson: lessonId, student: req.user.userId });
+    if (!booking) {
+      const enrolled = await Lesson.findOne({ _id: lessonId, enrolledStudents: req.user.userId });
+      if (!enrolled) return res.status(404).json({ message: 'Booking not found' });
+      booking = await LessonBooking.create({ lesson: lessonId, student: req.user.userId });
+    }
+
+    return res.json({ booking: { _id: booking._id, paymentStatus: booking.paymentStatus, bookingStatus: booking.bookingStatus } });
+  } catch (error) {
+    console.error('Get lesson booking error:', error);
+    return res.status(500).json({ message: 'Failed to fetch booking' });
   }
 };

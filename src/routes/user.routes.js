@@ -1,6 +1,7 @@
 import express from 'express';
 import User from '../models/user.js';
 import { protect } from '../middleware/auth.middleware.js';
+import { hashPassword, comparePassword } from '../utils/hash.js';
 import multer from 'multer';
 import path from 'path';
 
@@ -154,6 +155,37 @@ router.patch('/', protect, upload.single('avatar'), async (req, res) => {
   } catch (error) {
     console.error('Update User Profile Error:', error);
     res.status(500).json({ message: 'Failed to update profile' });
+  }
+});
+
+// PATCH /api/me/password - Change password (local auth only)
+router.patch('/password', protect, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current and new password are required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters' });
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (user.authProvider !== 'local') {
+      return res.status(400).json({ message: 'Password change is not available for Google-authenticated accounts' });
+    }
+
+    const isMatch = await comparePassword(currentPassword, user.password);
+    if (!isMatch) return res.status(400).json({ message: 'Current password is incorrect' });
+
+    user.password = await hashPassword(newPassword);
+    await user.save();
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change Password Error:', error);
+    res.status(500).json({ message: 'Failed to change password' });
   }
 });
 

@@ -1,4 +1,5 @@
 import Lesson from '../models/lesson.js';
+import LessonBooking from '../models/lessonBooking.js';
 
 // Create a new lesson
 export const createLesson = async (req, res) => {
@@ -97,14 +98,41 @@ export const getLessonsByTutorId = async (req, res) => {
   }
 };
 
-// Get student's enrolled lessons
+// Get student's enrolled lessons — returns lessons merged with per-student booking status
 export const getStudentLessons = async (req, res) => {
   try {
     const studentId = req.user.userId
-    const lessons = await Lesson.find({ enrolledStudents: studentId, isActive: true })
-      .populate('tutor', 'name email specialization avatar')
-      .populate('enrolledStudents', 'name email avatar')
+
+    // Back-fill LessonBooking records for enrollments that pre-date this feature
+    const existingBookings = await LessonBooking.find({ student: studentId }).select('lesson')
+    const bookedLessonIds = new Set(existingBookings.map((b) => String(b.lesson)))
+
+    const enrolledLessons = await Lesson.find({ enrolledStudents: studentId, isActive: true }).select('_id')
+    const missing = enrolledLessons.filter((l) => !bookedLessonIds.has(String(l._id)))
+
+    if (missing.length > 0) {
+      await LessonBooking.insertMany(
+        missing.map((l) => ({ lesson: l._id, student: studentId })),
+        { ordered: false }
+      ).catch(() => {}) // ignore duplicate key errors on race conditions
+    }
+
+    const bookings = await LessonBooking.find({ student: studentId })
+      .populate({
+        path: 'lesson',
+        match: { isActive: true },
+        populate: { path: 'tutor', select: 'name email specialization avatar' },
+      })
       .sort({ createdAt: -1 })
+
+    const lessons = bookings
+      .filter((b) => b.lesson)
+      .map((b) => ({
+        ...b.lesson.toObject(),
+        bookingStatus: b.bookingStatus,
+        paymentStatus: b.paymentStatus,
+        bookingId: b._id,
+      }))
 
     res.json({ lessons })
   } catch (error) {
@@ -233,6 +261,13 @@ export const enrollInLesson = async (req, res) => {
 
     lesson.enrolledStudents.push(req.user.userId);
     await lesson.save();
+
+    // Create per-student booking record (upsert in case of retry)
+    await LessonBooking.findOneAndUpdate(
+      { lesson: id, student: req.user.userId },
+      { $setOnInsert: { paymentStatus: 'Pending', bookingStatus: 'Pending Payment' } },
+      { upsert: true, new: true }
+    );
 
     await lesson.populate('tutor', 'name email specialization');
 
