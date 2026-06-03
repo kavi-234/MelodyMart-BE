@@ -24,10 +24,19 @@ export async function hashPassword(password) {
  */
 export async function comparePassword(password, hashedPassword) {
   try {
+    // Validate inputs
+    if (!password || typeof password !== 'string') {
+      return false;
+    }
+    if (!hashedPassword || typeof hashedPassword !== 'string') {
+      return false;
+    }
+
     const isMatch = await bcrypt.compare(password, hashedPassword);
     return isMatch;
   } catch (error) {
-    throw new Error('Error comparing passwords');
+    console.error('Password comparison error:', error.message);
+    return false;
   }
 }
 
