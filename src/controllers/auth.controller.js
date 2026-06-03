@@ -203,17 +203,32 @@ export const emailLogin = async (req, res) => {
 
     // Check if account is pending approval (for tutors and repair specialists)
     if (user.verificationStatus === 'PENDING_APPROVAL') {
-      return res.status(403).json({ 
-        message: 'Your account is pending admin approval. Please wait for approval before logging in.' 
+      return res.status(403).json({
+        message: 'Your account is pending admin approval. Please wait for approval before logging in.'
+      });
+    }
+
+    // Check if user has a password (should always have one for local auth)
+    if (!user.password) {
+      return res.status(401).json({
+        message: 'Invalid email or password'
       });
     }
 
     // Compare password
-    const isPasswordValid = await comparePassword(password, user.password);
+    let isPasswordValid = false;
+    try {
+      isPasswordValid = await comparePassword(password, user.password);
+    } catch (err) {
+      console.error('Password comparison error:', err);
+      return res.status(401).json({
+        message: 'Invalid email or password'
+      });
+    }
 
     if (!isPasswordValid) {
-      return res.status(401).json({ 
-        message: 'Invalid email or password' 
+      return res.status(401).json({
+        message: 'Invalid email or password'
       });
     }
 
