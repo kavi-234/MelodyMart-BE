@@ -126,9 +126,9 @@ export const emailSignup = async (req, res) => {
       verificationStatus: role === 'customer' ? 'APPROVED' : 'PENDING_APPROVAL'
     };
 
-    // Add document URL if uploaded
+    // Add document URL if uploaded — Cloudinary returns the secure URL in req.file.path
     if (req.file) {
-      userData.documentUrl = `/uploads/documents/${req.file.filename}`;
+      userData.documentUrl = req.file.path;
     }
 
     // Create user
@@ -149,6 +149,7 @@ export const emailSignup = async (req, res) => {
       role: user.role,
       authProvider: user.authProvider,
       isVerified: user.isVerified,
+      verificationStatus: user.verificationStatus,
       documentUrl: user.documentUrl
     };
 
@@ -247,6 +248,7 @@ export const emailLogin = async (req, res) => {
       role: user.role,
       authProvider: user.authProvider,
       isVerified: user.isVerified,
+      verificationStatus: user.verificationStatus,
       avatar: user.avatar,
       specialization: user.specialization,
       experience: user.experience,
@@ -317,10 +319,10 @@ export const completeProfile = async (req, res) => {
       user.isVerified = true;
     }
 
-    // Add document URLs if uploaded
+    // Add document URLs if uploaded — Cloudinary returns the secure URL in file.path
     if (req.files && req.files.length > 0) {
       user.verificationDocuments = req.files.map(file => ({
-        fileUrl: `/uploads/documents/${file.filename}`,
+        fileUrl: file.path,
         fileName: file.originalname,
         uploadedAt: new Date()
       }));

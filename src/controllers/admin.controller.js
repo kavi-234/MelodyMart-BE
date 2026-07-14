@@ -2,7 +2,6 @@ import User from '../models/user.js';
 import LessonBooking from '../models/lessonBooking.js';
 import ServiceRequest from '../models/serviceRequest.js';
 import Instrument from '../models/instrument.js';
-import Order from '../models/order.js';
 
 export const getAdminStats = async (req, res) => {
   try {
@@ -163,6 +162,17 @@ export const deleteInstrument = async (req, res) => {
   } catch (error) {
     console.error('Delete Instrument Error:', error);
     res.status(500).json({ message: 'Failed to delete instrument', error: error.message });
+  }
+};
+
+export const deleteUser = async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Delete User Error:', error);
+    res.status(500).json({ message: 'Failed to delete user', error: error.message });
   }
 };
 

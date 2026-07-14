@@ -4,6 +4,7 @@ import {
   verifyUser,
   getPendingUsers,
   getAllUsers,
+  deleteUser,
   getAllOrders,
   refundOrder,
   completeOrder,
@@ -26,6 +27,7 @@ router.get('/dashboard/stats', getAdminStats);
 router.patch('/verify-user/:userId', verifyUser);
 router.get('/pending-users', getPendingUsers);
 router.get('/users', getAllUsers);
+router.delete('/users/:userId', deleteUser);
 
 // Order management
 router.get('/orders', getAllOrders);

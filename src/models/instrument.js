@@ -28,7 +28,8 @@ const instrumentSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  image: {
+  imageUrl: String, // Cloudinary URL (new uploads)
+  image: {          // Legacy Buffer storage (existing data only)
     data: Buffer,
     contentType: String
   }

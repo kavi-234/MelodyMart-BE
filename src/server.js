@@ -13,6 +13,7 @@ import tutorRoutes from './routes/tutor.routes.js';
 import userRoutes from './routes/user.routes.js';
 import specialistRoutes from './routes/specialist.routes.js';
 import serviceRequestRoutes from './routes/serviceRequest.routes.js';
+import messageRoutes from './routes/message.routes.js';
 
 dotenv.config();
 
@@ -39,6 +40,7 @@ app.use('/api/tutors', tutorRoutes);
 app.use('/api/me', userRoutes);
 app.use('/api/specialists', specialistRoutes);
 app.use('/api/service-requests', serviceRequestRoutes);
+app.use('/api/messages', messageRoutes);
 
 // Centralized error handling middleware
 app.use((err, req, res, next) => {

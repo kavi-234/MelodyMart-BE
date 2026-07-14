@@ -2,27 +2,9 @@ import express from 'express';
 import User from '../models/user.js';
 import { protect } from '../middleware/auth.middleware.js';
 import { hashPassword, comparePassword } from '../utils/hash.js';
-import multer from 'multer';
-import path from 'path';
+import { uploadAvatar } from '../utils/upload.js';
 
 const router = express.Router();
-
-// Configure multer for avatar uploads
-const storage = multer.memoryStorage();
-const upload = multer({
-  storage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    
-    if (mimetype && extname) {
-      return cb(null, true);
-    }
-    cb(new Error('Only .png, .jpg and .jpeg format allowed!'));
-  }
-});
 
 // GET /api/me - Get current user profile (safe fields only)
 router.get('/', protect, async (req, res) => {
@@ -61,7 +43,7 @@ router.get('/', protect, async (req, res) => {
 });
 
 // PATCH /api/me - Update current user profile (whitelist allowed fields only)
-router.patch('/', protect, upload.single('avatar'), async (req, res) => {
+router.patch('/', protect, uploadAvatar.single('avatar'), async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
     
@@ -94,11 +76,9 @@ router.patch('/', protect, upload.single('avatar'), async (req, res) => {
       }
     });
 
-    // Handle avatar upload
+    // Handle avatar upload — Cloudinary returns the secure URL in req.file.path
     if (req.file) {
-      // Store avatar as base64 or you can upload to cloud storage
-      const avatarBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-      updates.avatar = avatarBase64;
+      updates.avatar = req.file.path;
     }
 
     // Validate name if provided
